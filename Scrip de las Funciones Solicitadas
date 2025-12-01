@@ -1,0 +1,208 @@
+--FUNCIONES DE NORTHWIND
+--1. Función Escalar – Total gastado por un cliente
+
+DROP FUNCTION IF EXISTS dbo.fn_TotalCompradoCliente;
+GO
+
+-- Devuelve el monto total comprado por un cliente de Northwind
+CREATE FUNCTION dbo.fn_TotalCompradoCliente (@CustomerID nchar(5))
+RETURNS MONEY
+AS
+BEGIN
+    DECLARE @Total MONEY;
+
+    SELECT @Total = SUM(od.UnitPrice * od.Quantity * (1 - od.Discount))
+    FROM Orders o
+    JOIN [Order Details] od ON o.OrderID = od.OrderID
+    WHERE o.CustomerID = @CustomerID;
+
+    RETURN ISNULL(@Total, 0);
+END;
+GO
+
+--2. Función Escalar – Obtener nombre completo del empleado
+
+DROP FUNCTION IF EXISTS dbo.fn_NombreCompletoEmpleado;
+GO
+
+CREATE FUNCTION dbo.fn_NombreCompletoEmpleado(@EmployeeID INT)
+RETURNS VARCHAR(100)
+AS
+BEGIN
+    DECLARE @Nombre VARCHAR(100);
+
+    SELECT @Nombre = FirstName + ' ' + LastName
+    FROM Employees
+    WHERE EmployeeID = @EmployeeID;
+
+    RETURN ISNULL(@Nombre, 'No encontrado');
+END;
+GO
+
+--3. Función Tabla – Productos bajo cierto precio
+
+DROP FUNCTION IF EXISTS dbo.fn_ProductosBajoPrecio;
+GO
+
+CREATE FUNCTION dbo.fn_ProductosBajoPrecio(@Precio MONEY)
+RETURNS TABLE
+AS
+RETURN (
+    SELECT ProductID, ProductName, UnitPrice
+    FROM Products
+    WHERE UnitPrice <= @Precio
+);
+GO
+
+
+--FUNCIONES DE PUBS
+--4. Función Escalar – Obtener nombre completo de un autor
+
+DROP FUNCTION IF EXISTS dbo.fn_NombreCompletoAutor;
+GO
+
+CREATE FUNCTION dbo.fn_NombreCompletoAutor (@Au_ID VARCHAR(20))
+RETURNS VARCHAR(200)
+AS
+BEGIN
+    DECLARE @Nombre VARCHAR(200);
+
+    SELECT @Nombre = au_fname + ' ' + au_lname
+    FROM authors
+    WHERE au_id = @Au_ID;
+
+    RETURN ISNULL(@Nombre, 'Autor no encontrado');
+END;
+GO
+
+SELECT dbo.fn_NombreCompletoAutor('172-32-1176');
+GO
+
+--5. Función Tabla – Libros y precios de un autor
+
+DROP FUNCTION IF EXISTS dbo.fn_LibrosPorAutor;
+GO
+
+CREATE FUNCTION dbo.fn_LibrosPorAutor (@Au_ID VARCHAR(20))
+RETURNS TABLE
+AS
+RETURN (
+    SELECT t.title, t.price, t.type
+    FROM titles t
+    JOIN titleauthor ta ON t.title_id = ta.title_id
+    WHERE ta.au_id = @Au_ID
+);
+GO
+
+SELECT * FROM dbo.fn_LibrosPorAutor('238-95-7766');
+GO
+
+--6. Función Tabla – Ventas por tienda
+DROP FUNCTION IF EXISTS dbo.fn_VentasPorTienda;
+GO
+
+CREATE FUNCTION dbo.fn_VentasPorTienda (@StoreID CHAR(4))
+RETURNS TABLE
+AS
+RETURN (
+    SELECT s.stor_name, t.title, SUM(sales.qty) AS CantidadVendida
+    FROM stores s
+    JOIN sales ON s.stor_id = sales.stor_id
+    JOIN titles t ON t.title_id = sales.title_id
+    WHERE s.stor_id = @StoreID
+    GROUP BY s.stor_name, t.title
+);
+GO
+
+SELECT * FROM dbo.fn_VentasPorTienda('8042');
+GO
+
+--7. Devuelve cuántos libros tiene una editorial (publisher) en la base de datos PUBS.
+IF OBJECT_ID('dbo.fn_CountBooksByPublisher', 'FN') IS NOT NULL
+    DROP FUNCTION dbo.fn_CountBooksByPublisher;
+GO
+
+CREATE FUNCTION dbo.fn_CountBooksByPublisher (@PubID CHAR(4))
+RETURNS INT
+AS
+BEGIN
+    DECLARE @Total INT;
+
+    SELECT @Total = COUNT(*)
+    FROM pubs.dbo.titles
+    WHERE pub_id = @PubID;
+
+    RETURN @Total;
+END;
+GO
+
+SELECT dbo.fn_CountBooksByPublisher('1389');
+GO
+
+
+--FUNCIONES DE ADVENTUREWORKS
+--8. Función Escalar – Obtener nombre completo del empleado
+
+DROP FUNCTION IF EXISTS dbo.fn_EmpleadoNombre;
+GO
+
+CREATE FUNCTION dbo.fn_EmpleadoNombre(@BusinessEntityID INT)
+RETURNS VARCHAR(200)
+AS
+BEGIN
+    DECLARE @Nombre VARCHAR(200);
+
+    SELECT @Nombre = p.FirstName + ' ' + p.LastName
+    FROM Person.Person p
+    WHERE p.BusinessEntityID = @BusinessEntityID;
+
+    RETURN ISNULL(@Nombre, 'Empleado no encontrado');
+END;
+GO
+
+SELECT dbo.fn_EmpleadoNombre(1);
+GO
+
+--9. Función Escalar – Sueldo total anual
+DROP FUNCTION IF EXISTS dbo.fn_SueldoAnual;
+GO
+
+CREATE FUNCTION dbo.fn_SueldoAnual(@BusinessEntityID INT)
+RETURNS MONEY
+AS
+BEGIN
+    DECLARE @Anual MONEY;
+
+    SELECT @Anual = Rate * 2080  
+    FROM HumanResources.EmployeePayHistory
+    WHERE BusinessEntityID = @BusinessEntityID;
+
+    RETURN ISNULL(@Anual, 0);
+END;
+GO
+
+SELECT dbo.fn_SueldoAnual(4);
+GO
+
+--10. Función Tabla – Detalle de ventas por cliente
+DROP FUNCTION IF EXISTS dbo.fn_VentasPorCliente;
+GO
+
+CREATE FUNCTION dbo.fn_VentasPorCliente(@CustomerID INT)
+RETURNS TABLE
+AS
+RETURN (
+    SELECT 
+        soh.SalesOrderID,
+        soh.OrderDate,
+        p.Name AS Producto,
+        sod.OrderQty,
+        sod.LineTotal
+    FROM Sales.SalesOrderHeader soh
+    JOIN Sales.SalesOrderDetail sod ON soh.SalesOrderID = sod.SalesOrderID
+    JOIN Production.Product p ON p.ProductID = sod.ProductID
+    WHERE soh.CustomerID = @CustomerID
+);
+GO
+
+SELECT * FROM dbo.fn_VentasPorCliente(29825);
