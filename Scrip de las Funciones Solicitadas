@@ -141,68 +141,71 @@ GO
 
 
 --FUNCIONES DE ADVENTUREWORKS
---8. Función Escalar – Obtener nombre completo del empleado
-
-DROP FUNCTION IF EXISTS dbo.fn_EmpleadoNombre;
-GO
-
-CREATE FUNCTION dbo.fn_EmpleadoNombre(@BusinessEntityID INT)
+--8. Devolver el nombre completo de un empleado (FirstName + LastName)
+CREATE OR ALTER FUNCTION dbo.NombreCompletoEmpleado
+(
+    @BusinessEntityID INT
+)
 RETURNS VARCHAR(200)
 AS
 BEGIN
     DECLARE @Nombre VARCHAR(200);
 
     SELECT @Nombre = p.FirstName + ' ' + p.LastName
-    FROM Person.Person p
-    WHERE p.BusinessEntityID = @BusinessEntityID;
+    FROM HumanResources.Employee e
+    INNER JOIN Person.Person p 
+        ON e.BusinessEntityID = p.BusinessEntityID
+    WHERE e.BusinessEntityID = @BusinessEntityID;
 
-    RETURN ISNULL(@Nombre, 'Empleado no encontrado');
+    RETURN ISNULL(@Nombre, 'No existe');
 END;
 GO
 
-SELECT dbo.fn_EmpleadoNombre(1);
+SELECT dbo.NombreCompletoEmpleado(1) AS NombreCompleto;
 GO
 
---9. Función Escalar – Sueldo total anual
-DROP FUNCTION IF EXISTS dbo.fn_SueldoAnual;
-GO
-
-CREATE FUNCTION dbo.fn_SueldoAnual(@BusinessEntityID INT)
-RETURNS MONEY
+--9. Calcular el precio promedio histórico de un producto
+CREATE OR ALTER FUNCTION dbo.CostoPromedioProducto
+(
+    @ProductID INT
+)
+RETURNS DECIMAL(10,2)
 AS
 BEGIN
-    DECLARE @Anual MONEY;
+    DECLARE @Promedio DECIMAL(10,2);
 
-    SELECT @Anual = Rate * 2080  
-    FROM HumanResources.EmployeePayHistory
-    WHERE BusinessEntityID = @BusinessEntityID;
+    SELECT @Promedio = AVG(StandardCost)
+    FROM Production.ProductCostHistory
+    WHERE ProductID = @ProductID;
 
-    RETURN ISNULL(@Anual, 0);
+    RETURN ISNULL(@Promedio, 0);
 END;
 GO
 
-SELECT dbo.fn_SueldoAnual(4);
+SELECT dbo.CostoPromedioProducto(707) AS CostoPromedio;
 GO
 
---10. Función Tabla – Detalle de ventas por cliente
-DROP FUNCTION IF EXISTS dbo.fn_VentasPorCliente;
-GO
-
-CREATE FUNCTION dbo.fn_VentasPorCliente(@CustomerID INT)
+--10. Obtener todos los productos con sus modelos y número de ilustraciones
+CREATE OR ALTER FUNCTION dbo.InfoProductosModelos()
 RETURNS TABLE
 AS
-RETURN (
+RETURN
+(
     SELECT 
-        soh.SalesOrderID,
-        soh.OrderDate,
+        p.ProductID,
         p.Name AS Producto,
-        sod.OrderQty,
-        sod.LineTotal
-    FROM Sales.SalesOrderHeader soh
-    JOIN Sales.SalesOrderDetail sod ON soh.SalesOrderID = sod.SalesOrderID
-    JOIN Production.Product p ON p.ProductID = sod.ProductID
-    WHERE soh.CustomerID = @CustomerID
+        pm.Name AS Modelo,
+        COUNT(pmi.IllustrationID) AS CantidadIlustraciones
+    FROM Production.Product p
+    LEFT JOIN Production.ProductModel pm 
+        ON p.ProductModelID = pm.ProductModelID
+    LEFT JOIN Production.ProductModelIllustration pmi
+        ON p.ProductModelID = pmi.ProductModelID
+    GROUP BY 
+        p.ProductID, p.Name, pm.Name
 );
 GO
 
-SELECT * FROM dbo.fn_VentasPorCliente(29825);
+-- PRUEBA
+SELECT TOP 20 * FROM dbo.InfoProductosModelos();
+GO
